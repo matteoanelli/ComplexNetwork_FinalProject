@@ -24,8 +24,8 @@ def SI(seed, p,data,time_inervals=None, immune_nodes = []):
                     infection_times[event['Destination']] = event['EndTime']
             else:
                 if event['EndTime'] < infection_times[event['Destination']]:
-                    infection_times[event["Destination"]] = min(infection_times[event["Destination"]],
-                                                                event["EndTime"])
+                    infection_times[event["Destination"]] = event['EndTime']
+
     infection_list = list(infection_times.values())
     infection_list.sort()
 
@@ -221,12 +221,44 @@ def shutting_down_airports(network :nx.Graph, sorted_data, immune_nodes,bins, n_
 
     return fig
 
-def compute_infection_links(network :nx.Graph, p, seed, sorted_data, immune_nodes):
+def SI_links(sorted_data, seed, p=.5,time_inervals=None, immune_node=[]):
+    infection_times = {}
+    # Set starting node and time
+    infection_times[seed] = 1229231100
+    links ={}
+
+    for event in sorted_data:
+        if event['Source'] in infection_times and infection_times[event['Source']] <= event['StartTime']:
+            if event['Destination'] not in infection_times:
+                if random.random() <= p:
+                    # Before replace the time than create the infected link
+                    infection_times[event['Destination']] = event['EndTime']
+                    links[(event['Source']), event['Destination']] = 1
+            else:
+                if event['EndTime'] < infection_times[event['Destination']]:
+                    infection_times[event["Destination"]] = event['EndTime']
+    infection_list = list(infection_times.values())
+    infection_list.sort()
+
+    if time_inervals is None:
+        return infection_times, infection_list
+    else:
+        return infection_times, list(np.digitize(infection_list, time_inervals))
+
+
+def compute_infection_links(network, event_data, p=.5, times=20):
     nodes = list(network.nodes)
 
-    infected_nodes = dict(zip(nodes, np.zeros(len(nodes))))
-    infection_times = dict(zip(nodes, np.zeros(len(nodes))))
-    infection_links = []
+    # random seed to start
+    seeds = random.sample([int(n) for n in nodes], times)
+
+    links_dict = {}
+
+
+
+
+    for seed in seeds:
+        pass
     pass
 
 def main():
@@ -245,6 +277,11 @@ def main():
     # Reading network
     with open('./aggregated_US_air_traffic_network_undir.edg', 'rb') as edge_list:
         network = nx.read_weighted_edgelist(edge_list)
+
+    data = np.genfromtxt("./US_airport_id_info.csv", delimiter=',', dtype=None, names=True, encoding=None)
+    xycoords = {}
+    for row in data:
+        xycoords[str(row['id'])] = (row['xcoordviz'], row['ycoordviz'])
 
     nodes = network.nodes
     number_nodes = len(nodes)
@@ -306,7 +343,7 @@ def main():
 
 
 
-
+    wieghts = compute_infection_links(network, event_data)
 
 
 
