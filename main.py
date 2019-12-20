@@ -8,6 +8,7 @@ import si_animator as an
 import pandas as pd
 from itertools import groupby
 import random
+from tqdm import tqdm
 
 def SI(seed, p,data,time_inervals=None, immune_nodes = []):
     infection_times = {}
@@ -178,11 +179,10 @@ def immune_nodes(network :nx.Graph, number_of_nodes):
     immune_nodes = {
         'Social Net.': random_neighbors(network, number_of_nodes),
         'Random Node': random.sample([int(n) for n in list(network.nodes)],number_of_nodes),
-        'UCC': [i[0] for i in Counter(nx.clustering(network)).most_common(number_of_nodes)],
-        'Degree': [i[0] for i in Counter(dict(nx.degree(network))).most_common(number_of_nodes)],
-        'Strenght': [i[0] for i in Counter((nx.degree(network,weight='weight'))).most_common(number_of_nodes)],
-        'UBC': [i[0] for i in Counter(nx.betweenness_centrality(network)).most_common(number_of_nodes)]}
-
+        'UCC': [int(i[0]) for i in Counter(nx.clustering(network)).most_common(number_of_nodes)],
+        'Degree': [int(i[0]) for i in Counter(dict(nx.degree(network))).most_common(number_of_nodes)],
+        'Strenght': [ int(i[0][0])for i in Counter((nx.degree(network,weight='weight'))).most_common(number_of_nodes)],
+        'UBC': [int(i[0]) for i in Counter(nx.betweenness_centrality(network)).most_common(number_of_nodes)]}
     return immune_nodes
 
 def shutting_down_airports(network :nx.Graph, sorted_data, immune_nodes,bins, n_bins,number_of_nodes, p=.5, times=20):
@@ -193,6 +193,7 @@ def shutting_down_airports(network :nx.Graph, sorted_data, immune_nodes,bins, n_
     for key in immune_nodes:
         set_immune_node += immune_nodes[key]
 
+
     seeds = []
 
     while len(seeds) < 20:
@@ -202,15 +203,12 @@ def shutting_down_airports(network :nx.Graph, sorted_data, immune_nodes,bins, n_
 
     for strategy in immune_nodes.keys():
         prevalence = []
-        for seed in seeds:
-            print(seed)
-            list_prob_times = []
-            for _ in range(times):
-                _, infection_list = SI(seed, .5, sorted_data, bins,immune_nodes[strategy])
-                list_times = average_prevelance(infection_list, n_bins, number_of_nodes)
-                list_prob_times.append(list_times)
+        for seed in  tqdm(seeds):
+            _, infection_list = SI(seed, .5, sorted_data, bins,immune_nodes[strategy])
+            list_times = average_prevelance(infection_list, n_bins, number_of_nodes)
+            prevalence.append(list_times)
 
-        plt.plot(bins - 1229231100, np.mean(list_prob_times, 0),
+        plt.plot(bins - 1229231100, np.mean(prevalence, 0),
                  '-',
                  linewidth=1.0,
                  label='{}'.format(strategy)
@@ -221,7 +219,15 @@ def shutting_down_airports(network :nx.Graph, sorted_data, immune_nodes,bins, n_
     ax.set_xlabel(r'Time')
     ax.legend(loc=0)
 
+    return fig
 
+def compute_infection_links(network :nx.Graph, p, seed, sorted_data, immune_nodes):
+    nodes = list(network.nodes)
+
+    infected_nodes = dict(zip(nodes, np.zeros(len(nodes))))
+    infection_times = dict(zip(nodes, np.zeros(len(nodes))))
+    infection_links = []
+    pass
 
 def main():
 
@@ -276,14 +282,31 @@ def main():
 
     #----------------------------------------------------- Task 5 -----------------------------------------------------#
 
-    number_immune_nodes = 10
+    # number_immune_nodes = 10
+    #
+    # immune_nodes_dict = immune_nodes(network, number_immune_nodes)
+    #
+    # fig = shutting_down_airports(network, event_data, immune_nodes_dict,bins, n_bins,number_nodes)
+    # fig.savefig('./task5_immunization_analysis.pdf')
+    # fig.show()
+    # fig.clear()
 
-    immune_nodes_dict = immune_nodes(network, number_immune_nodes)
+    # ----------------------------------------------------- Task 6 -------------------------------------------- #
 
-    fig = shutting_down_airports(network, event_data, immune_nodes_dict,bins, n_bins,number_nodes)
-    fig.savefig('./task5_immunization_analysis.pdf')
-    fig.show()
-    fig.clear()
+    p = 0.5
+    num_runs = 20
+    seeds = []
+    while len(seeds) < 20:
+        node = int(random.choice(list(network.nodes)))
+        if node not in seeds:
+            seeds.append(node)
+    infected_links_dict = {}
+    for seed in seeds:
+        infection_links = compute_infection_links()
+
+
+
+
 
 
 
