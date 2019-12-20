@@ -1,21 +1,23 @@
 import numpy as np
 import networkx as nx
 import scipy
-from scipy.stats import binned_statistic
+from scipy.stats import spearmanr
 from matplotlib import pyplot as plt
-from collections import defaultdict
+from collections import defaultdict, Counter
 import si_animator as an
 import pandas as pd
 from itertools import groupby
 import random
-def SI(seed, p,data,time_inervals=None):
+
+def SI(seed, p,data,time_inervals=None, immune_nodes = []):
     infection_times = {}
 
     # Set starting node and time
     infection_times[seed] = 1229231100
 
     for event in data:
-        if event['Source'] in infection_times and infection_times[event['Source']] <= event['StartTime']:
+        if event['Source'] in infection_times and infection_times[event['Source']] <= event['StartTime'] and\
+            event['Destination'] not in immune_nodes:
             if event['Destination'] not in infection_times:
                 if random.random() <= p:
                     infection_times[event['Destination']] = event['EndTime']
@@ -150,15 +152,74 @@ def similarity_measures(network: nx.Graph, sorted_data, p=.5, times=50):
         ax.set_title(r'Median infection time as a function of {}'.format(key))
         ax.set_ylabel(r'{}'.format(key))
         ax.set_xlabel(r'Median infection time')
-        # if key != 'UCC' and key != 'UBC':
-        #     ax.set_xscale('log')
+        if key != 'UCC' and key != 'UBC':
+            ax.set_xscale('log')
 
         plt.scatter(x,y)
         fig.savefig('./task4_{}.pdf'.format(key))
         fig.show()
         fig.clear()
 
+        spearman_coeff = spearmanr(x, y).correlation
+        print('Spearman rank-correlation coefficient of {}: {:.4f}'.format(key, spearman_coeff))
 
+def random_neighbors(network, number_of_nodes):
+    random_neighbors = []
+    while len(random_neighbors) < number_of_nodes:
+        neighbors = nx.neighbors(network, random.choice(list(network.nodes)))
+        random_neighbor = random.choice(list(neighbors))
+        if random_neighbor not in random_neighbors:
+            random_neighbors.append(random_neighbor)
+    return random_neighbors
+
+def immune_nodes(network :nx.Graph, number_of_nodes):
+    strategies = ["random neighbor","random node","clustering coefficient","degree","strength","betweenness centrality"]
+
+    immune_nodes = {
+        'Social Net.': random_neighbors(network, number_of_nodes),
+        'Random Node': random.sample([int(n) for n in list(network.nodes)],number_of_nodes),
+        'UCC': [i[0] for i in Counter(nx.clustering(network)).most_common(number_of_nodes)],
+        'Degree': [i[0] for i in Counter(dict(nx.degree(network))).most_common(number_of_nodes)],
+        'Strenght': [i[0] for i in Counter((nx.degree(network,weight='weight'))).most_common(number_of_nodes)],
+        'UBC': [i[0] for i in Counter(nx.betweenness_centrality(network)).most_common(number_of_nodes)]}
+
+    return immune_nodes
+
+def shutting_down_airports(network :nx.Graph, sorted_data, immune_nodes,bins, n_bins,number_of_nodes, p=.5, times=20):
+    fig = plt.figure(figsize=(10, 5))
+    ax = fig.add_subplot(111)
+
+    set_immune_node = []
+    for key in immune_nodes:
+        set_immune_node += immune_nodes[key]
+
+    seeds = []
+
+    while len(seeds) < 20:
+        node = int(random.choice(list(network.nodes)))
+        if node not in set_immune_node:
+            seeds.append(node)
+
+    for strategy in immune_nodes.keys():
+        prevalence = []
+        for seed in seeds:
+            print(seed)
+            list_prob_times = []
+            for _ in range(times):
+                _, infection_list = SI(seed, .5, sorted_data, bins,immune_nodes[strategy])
+                list_times = average_prevelance(infection_list, n_bins, number_of_nodes)
+                list_prob_times.append(list_times)
+
+        plt.plot(bins - 1229231100, np.mean(list_prob_times, 0),
+                 '-',
+                 linewidth=1.0,
+                 label='{}'.format(strategy)
+                 )
+
+    ax.set_title(r'Average prevalence as a function of time with different immunity strategy')
+    ax.set_ylabel(r'Average prevalence')
+    ax.set_xlabel(r'Time')
+    ax.legend(loc=0)
 
 
 
@@ -209,8 +270,20 @@ def main():
     # fig.show()
     # fig.clear()
 
-    similarity_measures(network,event_data)
+    #----------------------------------------------------- Task 4 -----------------------------------------------------#
 
+    # similarity_measures(network,event_data)
+
+    #----------------------------------------------------- Task 5 -----------------------------------------------------#
+
+    number_immune_nodes = 10
+
+    immune_nodes_dict = immune_nodes(network, number_immune_nodes)
+
+    fig = shutting_down_airports(network, event_data, immune_nodes_dict,bins, n_bins,number_nodes)
+    fig.savefig('./task5_immunization_analysis.pdf')
+    fig.show()
+    fig.clear()
 
 
 
