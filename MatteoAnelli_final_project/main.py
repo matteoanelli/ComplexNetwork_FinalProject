@@ -4,7 +4,6 @@ import scipy
 from scipy.stats import spearmanr
 from matplotlib import pyplot as plt
 from collections import defaultdict, Counter
-import si_animator as an
 import pandas as pd
 from itertools import groupby
 import random
@@ -12,6 +11,27 @@ from si_animator import visualize_si, plot_network_usa
 from tqdm import tqdm
 
 def SI(seed, p,data,time_inervals=None, immune_nodes = []):
+    '''
+    Simulate the infection according to the given parameters.
+    the model is to first sort all flights in increasing order of departure time, and then go through them in sequence.
+    Is the source node infected at the current time (look this up in the ordered dictionary)? If it is,
+    there are two options: a) the target node is susceptible (if node in infection_times is false), in which case you
+    should infect the target node with probability p and add it to the dictionary, setting its infection time to the
+    flight’s arrival time, and b) the target node is already infected. If so, check if the current flight’s arrival
+    time is earlier than the node’s infection time in the dictionary, and if, update it to the arrival tie.
+    The latter is because there may will be a shorter flight that carries the infection and arrives earlier than some
+    longer flight that is responsible for the time of infection.
+
+
+    :param seed: seed of the infection, node where the infection starts
+    :param p: probability of infection
+    :param data: numpy_array containing data relative to the events
+    :param time_inervals: bins to compute the binned timestamp, If set the infection is binned.
+    :param immune_nodes: List of nodes that are immune to the infection
+    :return: infection_times: Infection time dictionary
+    :return: infection_list: Sotred infection time list, the i’th element of the list is the time when i nodes have been infected.
+    '''
+
     infection_times = {}
 
     # Set starting node and time
@@ -34,7 +54,15 @@ def SI(seed, p,data,time_inervals=None, immune_nodes = []):
         return infection_times, infection_list
     else:
         return infection_times, list(np.digitize(infection_list, time_inervals))
+
 def average_prevelance(infection_list, bins, number_nodes):
+    '''
+    Compute the average prevelance (fraction of infected nodes) from a list of infection timestamps
+    :param infection_list: Sotred infection time list, the i’th element of the list is the time when i nodes have been infected.
+    :param bins: number of bins
+    :param number_nodes: number of nodes
+    :return: list of average prevalence
+    '''
     average_list = []
     total = 0
     for bin in range(bins):
@@ -47,6 +75,17 @@ def average_prevelance(infection_list, bins, number_nodes):
     return average_list
 
 def infection_multiple(probs, times, infected_source, sorted_data, bins, n_bins, number_nodes):
+    '''
+    Investigate the behavior of the prevalence over different probabilities of infection
+    :param probs: list of probabilities to investigate
+    :param times: number of iteration for each probabilities
+    :param infected_source: first node infected
+    :param sorted_data: numpy_array containing data relative to the events
+    :param bins: binned data
+    :param n_bins: number of bins
+    :param number_nodes:
+    :return: pyplot figure containing the prevalence over time with different probabilities
+    '''
     fig = plt.figure()
     ax = fig.add_subplot(111)
 
@@ -70,6 +109,17 @@ def infection_multiple(probs, times, infected_source, sorted_data, bins, n_bins,
     return fig
 
 def infection_multiple_seed(p, times, seeds, sorted_data, bins, n_bins, number_nodes):
+    '''
+    Investigate the behavior of the prevalence over different infected seeds1
+    :param p: probability to investigate
+    :param times: number of iteration for each seed
+    :param seeds: list of seeds to investigate
+    :param sorted_data: numpy_array containing data relative to the events
+    :param bins: binned data
+    :param n_bins: number of bins
+    :param number_nodes: number of nodes
+    :return: pyplot figure containing the prevalence over time with different seeds
+    '''
     fig = plt.figure()
     ax = fig.add_subplot(111)
     aereport = {0: 'ABE',
@@ -87,22 +137,26 @@ def infection_multiple_seed(p, times, seeds, sorted_data, bins, n_bins, number_n
         plt.plot(bins-1229231100, np.mean(list_prob_times, 0),
                  '-',
                  linewidth=1.0,
-                 label=aereport[seed]
+                 label='{}'.format(aereport[seed])
                  )
 
     ax.set_title('Average prevalence as a function of seed different seeds')
     ax.set_ylabel(r'Average prevalence')
     ax.set_xlabel(r'Time')
-    ax.legend('lower right')
+    ax.legend()
+
 
     return fig
 
-# def order_dict(values):
-#     temp = [val for val in list(values) if val[1]]
-#     temp.sort(key=lambda x: x[1])
-#     return temp
-
 def median_infection(network: nx.Graph, sorted_data, p=.5, times=20):
+    '''
+    Calculcate the median infection times for each nodes
+    :param network: analysed network
+    :param sorted_data: numpy_array containing data relative to the events
+    :param p: probability to investigate
+    :param times: number of iteration
+    :return: dictionary of the different median infection times
+    '''
     dict_infection = defaultdict(list)
     for _ in range(times):
         random_seed = int(random.choice(list(network.nodes())))
@@ -120,6 +174,15 @@ def median_infection(network: nx.Graph, sorted_data, p=.5, times=20):
     return median_dict
 
 def similarity_measures(network: nx.Graph, sorted_data, p=.5, times=50):
+    '''
+    Compute the median infection time with different similarity measure
+    :param network: analysed network
+    :param sorted_data: numpy_array containing data relative to the events
+    :param p: probability to investigate
+    :param times: number of iteration
+    :return:
+    '''
+
     fig = plt.figure(figsize=(10,5))
     ax = fig.add_subplot(111)
 
@@ -140,13 +203,13 @@ def similarity_measures(network: nx.Graph, sorted_data, p=.5, times=50):
         y = [median_infection_dict[int(node)] for node in list(network.nodes)]
 
         ax.set_title(r'Median infection time as a function of {}'.format(key))
-        ax.set_ylabel(r'{}'.format(key))
-        ax.set_xlabel(r'Median infection time')
+        ax.set_xlabel(r'{}'.format(key))
+        ax.set_ylabel(r'Median infection time')
         if key != 'UCC' and key != 'UBC':
             ax.set_xscale('log')
 
         plt.scatter(x,y)
-        fig.savefig('./task4_{}.pdf'.format(key))
+        fig.savefig('./Images/task4_{}.pdf'.format(key))
         fig.show()
         fig.clear()
 
@@ -154,17 +217,30 @@ def similarity_measures(network: nx.Graph, sorted_data, p=.5, times=50):
         print('Spearman rank-correlation coefficient of {}: {:.4f}'.format(key, spearman_coeff))
 
 def random_neighbors(network, number_of_nodes):
+    '''
+    Calculate random neighbours
+    :param network: analysed network
+    :param number_of_nodes: number of nodes
+    :return: a list of random neighbours
+    '''
     random_neighbors = []
     while len(random_neighbors) < number_of_nodes:
-        neighbors = nx.neighbors(network, random.choice(list(network.nodes)))
-        random_neighbor = random.choice(list(neighbors))
-        if random_neighbor not in random_neighbors:
+        random_node = np.random.choice(network.nodes)
+        random_neighbor = np.random.choice(list(network.neighbors(random_node)))
+        if int(random_neighbor) not in random_neighbors:
             random_neighbors.append(random_neighbor)
     return random_neighbors
 
 def immune_nodes(network :nx.Graph, number_of_nodes):
+    '''
+    Set the different immunative strategies and calculate the immune nodes
+    :param network: analysed network
+    :param number_of_nodes: number of nodes
+    :return: dictionary with the immune nodes
+    '''
     strategies = ["random neighbor","random node","clustering coefficient","degree","strength","betweenness centrality"]
-
+        # neighbors = nx.neighbors(network, random.choice(list(network.nodes)))
+        # random_neighbor = random.choice(list(neighbors))
     immune_nodes = {
         'Social Net.': random_neighbors(network, number_of_nodes),
         'Random Node': random.sample([int(n) for n in list(network.nodes)],number_of_nodes),
@@ -175,6 +251,18 @@ def immune_nodes(network :nx.Graph, number_of_nodes):
     return immune_nodes
 
 def shutting_down_airports(network :nx.Graph, sorted_data, immune_nodes,bins, n_bins,number_of_nodes, p=.5, times=20):
+    '''
+    Calculate the Average prevalence as a function of time with different immunity strategy
+    :param network: analysed network
+    :param sorted_data: numpy_array containing data relative to the events
+    :param immune_nodes: list of immune nodes
+    :param bins: binned data
+    :param n_bins: number of bins
+    :param number_of_nodes: number of nodes
+    :param p: probability to compute
+    :param times: number of iteration
+    :return: pyplot figure with the Average prevalence as a function of time with different immunity strategy
+    '''
     fig = plt.figure(figsize=(10, 5))
     ax = fig.add_subplot(111)
 
@@ -192,7 +280,7 @@ def shutting_down_airports(network :nx.Graph, sorted_data, immune_nodes,bins, n_
 
     for strategy in immune_nodes.keys():
         prevalence = []
-        for seed in  tqdm(seeds):
+        for seed in tqdm(seeds):
             _, infection_list = SI(seed, .5, sorted_data, bins,immune_nodes[strategy])
             list_times = average_prevelance(infection_list, n_bins, number_of_nodes)
             prevalence.append(list_times)
@@ -206,11 +294,18 @@ def shutting_down_airports(network :nx.Graph, sorted_data, immune_nodes,bins, n_
     ax.set_title(r'Average prevalence as a function of time with different immunity strategy')
     ax.set_ylabel(r'Average prevalence')
     ax.set_xlabel(r'Time')
-    ax.legend(loc=0)
+    ax.legend()
 
     return fig
 
 def SI_links(sorted_data, seed, p=.5):
+    '''
+    Simulate the infection and compute a dictionary of edges that transmitted the disease at least once
+    :param sorted_data: numpy_array containing data relative to the events
+    :param seed: starting node
+    :param p: probability to compute
+    :return: dictionary containing the edges that transmitted the disease at least once and the number of infection passed through them
+    '''
     infection_times = {}
     # Set starting node and time
     infection_times[seed] = 1229231100
@@ -234,6 +329,14 @@ def SI_links(sorted_data, seed, p=.5):
 
 
 def compute_infection_links(network, event_data, p=.5, times=20):
+    '''
+    Compute a dictionary containing the network edges statistics for each edge of a given network
+    :param network: analysed network
+    :param event_data: numpy_array containing data relative to the events
+    :param p: probability to compute
+    :param times: number of iteration
+    :return: dictionary with edge tuples as keys and fraction of transmission as values
+    '''
     nodes = list(network.nodes)
 
     # random seed to start
@@ -265,6 +368,12 @@ def compute_infection_links(network, event_data, p=.5, times=20):
     return links_dict_ordered
 
 def scatter_links(network, weights):
+    '''
+    Trasmission ratio as function of two statistics: weight and betweenness centrality
+    :param network: analysed network
+    :param weights: wheight of infection
+    :return: pyplot figure with the trasmission ratio
+    '''
     edges = list(network.edges())
 
     statistics = {
@@ -288,7 +397,7 @@ def scatter_links(network, weights):
         plt.ylabel('Fraction of times fij')
         plt.scatter(x, y)
         plt.title('Transmission ratio as function of {}'.format(key))
-        plt.savefig('./{}.pdf'.format(key.replace(" ", "_")))
+        plt.savefig('./Images/{}.pdf'.format(key.replace(" ", "_")))
         plt.show()
         plt.close()
 
@@ -298,18 +407,10 @@ def scatter_links(network, weights):
 
 
 
-def main():
-
+if __name__ == "__main__":
     ndtype = [("Source", int), ("Destination", int), ("StartTime", int), ("EndTime", int)]
     event_data = np.genfromtxt('events_US_air_traffic_GMT.txt', names=True, dtype=ndtype)
     event_data.sort(order=["StartTime"])
-
-
-    # reading input event data and sort them in increasing departure time
-
-    # data = pd.read_csv('events_US_air_traffic_GMT.txt', header=[0,1,2,3,4], sep=' ')
-    # data.columns = ['Source', 'Destination', 'StartTime', 'EndTime', 'Duration']
-    # sorted_data = data.sort_values(by=['StartTime'])
 
     # Reading network
     with open('./aggregated_US_air_traffic_network_undir.edg', 'rb') as edge_list:
@@ -337,7 +438,7 @@ def main():
     prob = [0.01, 0.05, 0.1, 0.5, 1.0]
 
     fig = infection_multiple(prob, 10, 0, event_data, bins, n_bins, number_nodes)
-    fig.savefig('./task2_average_prevalence.pdf')
+    fig.savefig('./Images/task2_average_prevalence.pdf')
     fig.show()
     fig.clear()
     print('Task2 end')
@@ -349,7 +450,7 @@ def main():
     seed = [0, 4, 41, 100, 200]
 
     fig = infection_multiple_seed(.1, 10, seed, event_data, bins, n_bins, number_nodes)
-    fig.savefig('./task3_seed_inspection.pdf')
+    fig.savefig('./Images/task3_seed_inspection.pdf')
     fig.show()
     fig.clear()
     print('Task3 end')
@@ -366,7 +467,7 @@ def main():
     immune_nodes_dict = immune_nodes(network, number_immune_nodes)
 
     fig = shutting_down_airports(network, event_data, immune_nodes_dict,bins, n_bins,number_nodes)
-    fig.savefig('./task5_immunization_analysis.pdf')
+    fig.savefig('./Images/task5_immunization_analysis.pdf')
     fig.show()
     fig.clear()
     print('Task5 end')
@@ -388,7 +489,7 @@ def main():
 
     plot_network_usa(network, xycoords, edges=list(weights.keys()), linewidths=norm_weights)
     plt.title("Infected links")
-    plt.savefig('./task6_plot_network_usa.pdf')
+    plt.savefig('./Images/task6_plot_network_usa.pdf')
     plt.show()
     plt.close()
 
@@ -397,7 +498,7 @@ def main():
 
     plot_network_usa(max_spann_tree, xycoords, edges=max_spann_edges)
     plt.title("Infected links max spanning")
-    plt.savefig('./task6_plot_network_usa_max_spanning_tree.pdf')
+    plt.savefig('./Images/task6_plot_network_usa_max_spanning_tree.pdf')
     plt.show()
     plt.close()
 
@@ -413,6 +514,3 @@ def main():
 
 
 
-
-if __name__ == '__main__':
-    main()
